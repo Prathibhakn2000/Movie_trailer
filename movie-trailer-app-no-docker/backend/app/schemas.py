@@ -87,14 +87,12 @@ class MovieSaveSchema(BaseModel):
     vote_average: float | None = None
 
 
+class MovieLikeModel(BaseModel):
+    movie_id: int
+    is_like: bool
 
-#from pydantic import BaseModel
 
-
-# class MovieSaveSchema(BaseModel):
-#     movie_id: int
-#     title: str
-#     overview: str | None = None
-#     poster_path: str | None = None
-#     vote_average: float | None = None
-
+class MovieFavModel(BaseModel):
+    movie_id: int
+    title: str
+    poster_path: str | None = None

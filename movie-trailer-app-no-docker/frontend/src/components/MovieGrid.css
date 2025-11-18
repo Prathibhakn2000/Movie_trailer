@@ -159,6 +159,22 @@
   margin-top: 10px;
 }
 
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;        /* spacing between buttons */
+  margin-top: 8px;
+}
+
+.action-row button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
 .save-btn,
 .saved {
   background: #007bff;
@@ -172,4 +188,36 @@
 
 .saved {
   background: green;
+}
+
+.icon-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;        /* space between icons */
+}
+
+.favorite-btn,
+.like-btn,
+.dislike-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.yt-icon {
+  font-size: 24px;
+  color: white;
+  transition: 0.2s;
+}
+
+/* like / dislike active = blue */
+.like-btn.active .yt-icon,
+.dislike-btn.active .yt-icon {
+  color: #3ea6ff;
+}
+
+/* favorite active = red */
+.fav-active {
+  color: red !important;
 }

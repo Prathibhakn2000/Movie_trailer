@@ -359,6 +359,29 @@ import axios from "axios";
 import Modal from "react-modal";
 import { FaPlay, FaStar, FaHeart } from "react-icons/fa";
 import "./MovieGrid.css";
+// Add these imports at the top of the file
+import {
+  AiOutlineHeart,
+  AiFillHeart,
+  AiOutlineLike,
+  AiOutlineDislike,
+  AiFillLike,
+  AiFillDislike
+} from "react-icons/ai";
+
+
+
+
+// ⭐ PUT THIS HERE
+const authHeader = () => {
+  const token = localStorage.getItem("token");
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  };
+};
+
 
 Modal.setAppElement("#root");
 
@@ -374,14 +397,22 @@ const LANGUAGES = [
 ];
 
 function MovieGrid({ token, role, onLogout }) {
+ //console.log("TOKEN FROM MOVIEGRID:", token);
+  const [savedMovies, setSavedMovies] = useState([]);
   const [movies, setMovies] = useState([]);   // ALWAYS an array
   const [language, setLanguage] = useState("en");
   const [searchQuery, setSearchQuery] = useState("");
   const [trailerUrl, setTrailerUrl] = useState("");
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
-  const [savedMovies, setSavedMovies] = useState([]);
+  //const [savedMovies, setSavedMovies] = useState([]);
   const [error, setError] = useState("");
+  const [favorites, setFavorites] = useState([]);
+  const [likes, setLikes] = useState({});
+
+  const [currentMovie, setCurrentMovie] = useState(null); // movie object whose trailer is playing
+
+  
 
   // Normalize API response to array
   const normalize = (data) => {
@@ -524,68 +555,168 @@ const fetchMovies = async (lang) => {
 
   // ❤️ SAVE MOVIE
   const saveMovie = async (movie) => {
-    const token = localStorage.getItem("token"); // <-- use the same key as LoginPage
+  const token = localStorage.getItem("token");
   if (!token) {
-  alert("Please login first!");
-  return;
-}
+    alert("Please login first!");
+    return;
+  }
 
-    try {
-      await axios.post(
-        `${API_BASE}/movies/save`,
-        {
-          movie_id: movie.id,
-          title: movie.title,
-          overview: movie.overview,
-          poster_path: movie.poster_path,
-          vote_average: movie.vote_average,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      setSavedMovies((prev) => [...prev, movie.id]);
-      alert("Movie saved!");
-    } catch (err) {
-      console.log("SAVE MOVIE ERROR:", err.response?.data || err);
-    }
-  };
-
-// ✅ Fetch movies already saved by this user
-const fetchSavedMovies = async () => {
-  if (!token) return;
   try {
-    const res = await axios.get(`${API_BASE}/movies/saved-by-user`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    // Assuming API returns array of movie_ids
-    setSavedMovies(res.data.map((m) => m.movie_id));
+    const res = await axios.post(
+      `${API_BASE}/movies/save`,
+      {
+        movie_id: movie.id,
+        title: movie.title,
+        overview: movie.overview,
+        poster_path: movie.poster_path,
+        vote_average: movie.vote_average,
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (res.data.message === "Already saved") return;
+
+    setSavedMovies((prev) => {
+  const list = Array.isArray(prev) ? prev : [];
+  return [...list, movie.id];
+});
   } catch (err) {
-    console.error("Error fetching saved movies:", err);
+    console.log("SAVE MOVIE ERROR:", err.response?.data || err);
   }
 };
 
+
+
 useEffect(() => {
-  if (role !== "admin") fetchSavedMovies();
-}, [role, token]);
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  // ✅ Fetch movies already saved by this user
+  const fetchSaved = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/user/saved-movies`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // FIX: force array and map movie objects → IDs
+      const savedIds = Array.isArray(res.data)
+        ? res.data.map(m => m.movie_id)
+        : Array.isArray(res.data.saved_movie_ids)
+          ? res.data.saved_movie_ids
+          : [];
+
+      setSavedMovies(savedIds);
+      console.log("📌 Saved movies loaded:", savedIds);
+    } catch (err) {
+      console.log("FETCH SAVED ERROR:", err.response?.data || err);
+    }
+  };
+
+  fetchSaved();
+}, []);
+
+
+
+//Favorites
+const fetchFavorites = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  try {
+    const res = await axios.get(`${API_BASE}/user/favorites`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    setFavoriteMovies(res.data);
+  } catch (err) {
+    console.log("FAVORITE FETCH ERROR:", err.response?.data || err);
+  }
+};
+
+
+
+const addFavorite = async (movie) => {
+  try {
+    const res = await axios.post(
+      `${API_BASE}/movies/favorite`,
+      {
+        movie_id: movie.id,
+        title: movie.title,
+        poster_path: movie.poster_path,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    // Update local favorites state
+    setFavorites((prev) =>
+      prev.includes(movie.id) ? prev.filter((id) => id !== movie.id) : [...prev, movie.id]
+    );
+
+  } catch (err) {
+    console.error("FAVORITE ERROR:", err);
+  }
+};
+  
+
+
+
+//like
+const likeMovie = async (movie_id, isLike) => {
+  try {
+    const res = await axios.post(
+      `${API_BASE}/movies/like`,
+      {
+        movie_id: movie_id,
+        is_like: isLike,  // 🔥 MUST MATCH BACKEND
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,  // 🔥 MUST BE EXACT FORMAT
+        },
+      }
+    );
+
+    setLikes((prev) => ({ ...prev, [movie_id]: isLike }));
+
+  } catch (err) {
+    console.log("LIKE ERROR:", err);
+  }
+};
+
+//already favt and like
+useEffect(() => {
+  const fetchUserData = async () => {
+    try {
+      // Fetch favorites
+      const favRes = await axios.get(`${API_BASE}/user/favorites`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setFavorites(favRes.data.favorites || []);
+
+      // Fetch likes
+      const likeRes = await axios.get(`${API_BASE}/user/likes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setLikes(likeRes.data.likes || {});
+    } catch (err) {
+      console.error("Failed to load user data:", err);
+    }
+  };
+
+  fetchUserData();
+}, [token]);
 
 
 
   return (
     <div className="movie-page">
-      {/* <header className="header">
-        <h1>🎬 Movie Trailer App</h1>
-        <button onClick={onLogout} className="logout-btn">
-          {role === "admin" ? "👑 Admin Logout" : "🙋‍♂️ User Logout"}
-        </button>
-      </header>
-
-      {role === "admin" && (
-        <h2 style={{ textAlign: "center", color: "#e50914" }}>
-          All Saved Movies (Admin View)
-        </h2>
-      )} */}
+      
 
       {/* Language Tabs */}
       {role !== "admin" && (
@@ -622,7 +753,8 @@ useEffect(() => {
         {movies.length === 0 ? (
           <p style={{ textAlign: "center", color: "#aaa" }}>No movies found</p>
         ) : (
-          movies.map((movie) => (
+         // movies.map((movie) => (
+          movies?.map((movie) => (
             <div key={movie.id} className="movie-card">
               <div className="poster-container">
                 <img
@@ -660,28 +792,72 @@ useEffect(() => {
 
                 {/* ❤️ SAVE BUTTON */}
                 {role !== "admin" && (
-                  <button
-                    className={
-                      savedMovies.includes(movie.id) ? "saved" : "save-btn"
-                    }
-                    onClick={() => saveMovie(movie)}
-                  >
-                    {savedMovies.includes(movie.id) ? (
-                      <>
-                        <FaHeart color="red" /> Saved
-                      </>
-                    ) : (
-                      <>
-                        <FaHeart /> Save
-                      </>
-                    )}
-                  </button>
-                )}
+  <button
+    className={(savedMovies || []).includes(movie.id) ? "saved" : "save-btn"}
+    onClick={() => saveMovie(movie)}
+    disabled={(savedMovies || []).includes(movie.id)}
+  >
+    {(savedMovies || []).includes(movie.id)
+    
+    
+    ? (
+      <>
+        <FaHeart color="green" /> Saved
+      </>
+    ) : (
+      <>
+        <FaHeart color="blue" /> Save
+      </>
+    )}
+  </button>
+)}
+
+<div className="icon-row">
+
+  {/* FAVORITE */}
+  <button
+    className={(favorites || []).includes(movie.id) ? "favorite-btn active" : "favorite-btn"}
+    onClick={() => addFavorite(movie)}
+  >
+    {(favorites || []).includes(movie.id)
+      ? <AiFillHeart className="yt-icon fav-active" />
+      : <AiOutlineHeart className="yt-icon" />
+    }
+  </button>
+
+  {/* LIKE */}
+  <button
+    className={likes[movie.id] === true ? "like-btn active" : "like-btn"}
+    onClick={() => likeMovie(movie.id, true)}
+  >
+    {likes[movie.id] === true
+      ? <AiFillLike className="yt-icon active" />
+      : <AiOutlineLike className="yt-icon" />
+    }
+  </button>
+
+  {/* DISLIKE */}
+  <button
+    className={likes[movie.id] === false ? "dislike-btn active" : "dislike-btn"}
+    onClick={() => likeMovie(movie.id, false)}
+  >
+    {likes[movie.id] === false
+      ? <AiFillDislike className="yt-icon active" />
+      : <AiOutlineDislike className="yt-icon" />
+    }
+  </button>
+
+</div>
+
               </div>
             </div>
           ))
         )}
       </div>
+
+
+
+     
 
       {/* TRAILER MODAL */}
       <Modal

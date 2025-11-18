@@ -24,7 +24,19 @@ function AppRoutes() {
       <Route path="/admin" element={token && role === "admin" ? <AdminPage /> : <Navigate to="/login" />} />
 
       {/* Movies Page */}
-      <Route path="/movies" element={token && role !== "admin" ? <MovieGrid /> : <Navigate to={role === "admin" ? "/admin" : "/login"} />} />
+      {/* <Route path="/movies" element={token && role !== "admin" ? <MovieGrid /> : <Navigate to={role === "admin" ? "/admin" : "/login"} />} /> 
+      */}
+      <Route
+  path="/movies"
+  element={
+    token && role !== "admin" ? (
+      <MovieGrid token={token} role={role} />
+    ) : (
+      <Navigate to={role === "admin" ? "/admin" : "/login"} />
+    )
+  }
+/>
+
 
       {/* Default route */}
       <Route path="/" element={<Navigate to={token ? (role === "admin" ? "/admin" : "/movies") : "/login"} />} />

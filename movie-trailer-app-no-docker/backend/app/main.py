@@ -612,11 +612,10 @@ from app.models import User, SavedMovie
 from app.schemas import SignupModel, LoginModel, MovieSaveSchema
 from app.auth_utils import get_current_user
 from fastapi import FastAPI, Depends, HTTPException
-from app.models import User, SavedMovie, Rating
+from app.models import User, SavedMovie, Rating, FavoriteMovie, LikeMovie
+from .schemas import MovieFavModel, MovieLikeModel
 from app.auth_utils import get_current_admin_user  # admin auth
 from app.auth_utils import get_current_user  # your user dependency
-
-
 
 # Load .env
 load_dotenv()
@@ -664,17 +663,39 @@ def signup(user: SignupModel, db: Session = Depends(get_db)):
 # ==========================
 # LOGIN
 # ==========================
+# @app.post("/login")
+# def login(data: LoginModel, db: Session = Depends(get_db)):
+#     user = db.query(User).filter(User.email == data.email).first()
+#     if not user or not pwd.verify(data.password, user.password):
+#         raise HTTPException(401, "Invalid credentials")
+#     token = jwt.encode(
+#         {"sub": user.email, "role": user.role, "exp": datetime.utcnow() + timedelta(hours=2)},
+#         SECRET_KEY,
+#         algorithm=ALGORITHM
+#     )
+#     return {"access_token": token, "role": user.role, "username": user.username}
+
 @app.post("/login")
 def login(data: LoginModel, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
+    
     if not user or not pwd.verify(data.password, user.password):
         raise HTTPException(401, "Invalid credentials")
-    token = jwt.encode(
-        {"sub": user.email, "role": user.role, "exp": datetime.utcnow() + timedelta(hours=2)},
-        SECRET_KEY,
-        algorithm=ALGORITHM
-    )
-    return {"access_token": token, "role": user.role, "username": user.username}
+
+    token_data = {
+        "sub": user.email,
+        "role": user.role,
+        "user_id": user.id,          # <<< IMPORTANT
+        "exp": datetime.utcnow() + timedelta(hours=2)
+    }
+
+    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+
+    return {
+        "access_token": token,
+        "role": user.role,
+        "username": user.username
+    }
 
 
 # ==========================
@@ -725,9 +746,12 @@ def save_movie(data: MovieSaveSchema, db=Depends(get_db), user=Depends(get_curre
 # GET SAVED MOVIES (USER)
 # ==========================
 @app.get("/user/saved-movies")
-def saved_movies(db=Depends(get_db), user=Depends(get_current_user)):
-    movies = db.query(SavedMovie).filter(SavedMovie.user_id == user.id).all()
-    return movies
+def get_saved_movies(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    saved = db.query(SavedMovie).filter(SavedMovie.user_id == user.id).all()
+    return {
+        "saved_movie_ids": [m.movie_id for m in saved]
+    }
+
 
 # ==========================
 # ADMIN: DELETE ANY SAVED MOVIE
@@ -926,3 +950,76 @@ def get_all_ratings(db: Session = Depends(get_db), current_user: User = Depends(
     ]
 
 
+@app.post("/movies/favorite")
+def favorite_movie(data: MovieFavModel,
+               db: Session = Depends(get_db),
+               current_user: User = Depends(get_current_user)):
+
+    existing = db.query(FavoriteMovie).filter(
+        FavoriteMovie.user_id == current_user.id,
+        FavoriteMovie.movie_id == data.movie_id
+    ).first()
+
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"message": "removed from favorite"}
+
+    new_fav = FavoriteMovie(user_id=current_user.id, movie_id=data.movie_id)
+    db.add(new_fav)
+    db.commit()
+    return {"message": "favorited"}
+
+
+# Get user's favorite movies
+@app.get("/user/favorites")
+def get_user_favorites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    favorites = db.query(FavoriteMovie).filter(FavoriteMovie.user_id == current_user.id).all()
+    return {"favorites": [f.movie_id for f in favorites]}
+
+@app.post("/movies/like")
+def like_movie(
+    data: MovieLikeModel,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    existing = db.query(LikeMovie).filter(
+        LikeMovie.user_id == current_user.id,
+        LikeMovie.movie_id == data.movie_id
+    ).first()
+
+    if existing:
+        # update like/dislike instead of deleting
+        existing.is_like = data.is_like
+        db.commit()
+        return {"message": "updated"}
+
+    new_like = LikeMovie(
+        user_id=current_user.id,
+        movie_id=data.movie_id,
+        is_like=data.is_like
+    )
+    db.add(new_like)
+    db.commit()
+    return {"message": "created"}
+
+
+@app.get("/movies/{movie_id}/like-status")
+def like_status(
+    movie_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    status = db.query(LikeMovie).filter(
+        LikeMovie.user_id == user.id,
+        LikeMovie.movie_id == movie_id
+    ).first()
+
+    return {"status": status.is_like if status else None}
+
+
+# Get user's likes/dislikes
+@app.get("/user/likes")
+def get_user_likes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    likes = db.query(LikeMovie).filter(LikeMovie.user_id == current_user.id).all()
+    return {"likes": {l.movie_id: l.is_like for l in likes}}

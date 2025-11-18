@@ -33,6 +33,7 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
+from sqlalchemy import Boolean
 
 class User(Base):
     __tablename__ = "users"
@@ -72,3 +73,20 @@ class Rating(Base):
 
     movie = relationship("SavedMovie", back_populates="ratings")
     user = relationship("User", back_populates="ratings")
+
+class FavoriteMovie(Base):
+    __tablename__ = "favorite_movies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    movie_id = Column(Integer)
+    title = Column(String(255))
+    poster_path = Column(String(255))
+
+class LikeMovie(Base):
+    __tablename__ = "like_movies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    movie_id = Column(Integer)
+    is_like = Column(Boolean)   # True = Like 👍, False = Dislike 👎
