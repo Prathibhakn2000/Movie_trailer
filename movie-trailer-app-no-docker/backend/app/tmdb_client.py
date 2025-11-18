@@ -84,3 +84,4 @@ def get_trailer(movie_id: int, movie_title: str = ""):
             return items[0]["id"]["videoId"]
 
     return None
+
