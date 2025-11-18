@@ -951,10 +951,11 @@ def get_all_ratings(db: Session = Depends(get_db), current_user: User = Depends(
 
 
 @app.post("/movies/favorite")
-def favorite_movie(data: MovieFavModel,
-               db: Session = Depends(get_db),
-               current_user: User = Depends(get_current_user)):
-
+def favorite_movie(
+    data: MovieFavModel,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     existing = db.query(FavoriteMovie).filter(
         FavoriteMovie.user_id == current_user.id,
         FavoriteMovie.movie_id == data.movie_id
@@ -963,12 +964,21 @@ def favorite_movie(data: MovieFavModel,
     if existing:
         db.delete(existing)
         db.commit()
-        return {"message": "removed from favorite"}
+    else:
+        new_fav = FavoriteMovie(
+            user_id=current_user.id,
+            movie_id=data.movie_id
+        )
+        db.add(new_fav)
+        db.commit()
 
-    new_fav = FavoriteMovie(user_id=current_user.id, movie_id=data.movie_id)
-    db.add(new_fav)
-    db.commit()
-    return {"message": "favorited"}
+    # 🔥 Get updated count
+    count = db.query(FavoriteMovie).filter(
+        FavoriteMovie.movie_id == data.movie_id
+    ).count()
+
+    return {"favorite_count": count}
+
 
 
 # Get user's favorite movies
@@ -1023,3 +1033,29 @@ def like_status(
 def get_user_likes(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     likes = db.query(LikeMovie).filter(LikeMovie.user_id == current_user.id).all()
     return {"likes": {l.movie_id: l.is_like for l in likes}}
+
+
+@app.get("/movies/{movie_id}/likes-count")
+def get_likes_count(movie_id: int, db: Session = Depends(get_db)):
+    likes = db.query(LikeMovie).filter(
+        LikeMovie.movie_id == movie_id,
+        LikeMovie.is_like == True
+    ).count()
+
+    dislikes = db.query(LikeMovie).filter(
+        LikeMovie.movie_id == movie_id,
+        LikeMovie.is_like == False
+    ).count()
+
+    return {
+        "likes": likes,
+        "dislikes": dislikes
+    }
+
+
+@app.get("/movies/{movie_id}/favorite-count")
+def favorite_count(movie_id: int, db: Session = Depends(get_db)):
+    count = db.query(FavoriteMovie).filter(
+        FavoriteMovie.movie_id == movie_id
+    ).count()
+    return {"count": count}
