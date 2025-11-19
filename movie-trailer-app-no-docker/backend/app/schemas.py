@@ -96,3 +96,11 @@ class MovieFavModel(BaseModel):
     movie_id: int
     title: str
     poster_path: str | None = None
+
+
+
+class Movie(BaseModel):
+    id: int
+    title: str
+    poster_path: str
+    trailer_url: str

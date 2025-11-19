@@ -90,3 +90,5 @@ class LikeMovie(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     movie_id = Column(Integer)
     is_like = Column(Boolean)   # True = Like 👍, False = Dislike 👎
+
+

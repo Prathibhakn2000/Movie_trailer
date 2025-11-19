@@ -175,19 +175,25 @@
   font-size: 13px;
 }
 
-.save-btn,
-.saved {
-  background: #007bff;
-  color: white;
+/* Save button wrapper */
+.save-btn {
+  background: transparent;
   border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
   cursor: pointer;
-  font-weight: bold;
+  padding: 4px;
 }
 
-.saved {
-  background: green;
+/* Default: white icon */
+.save-icon {
+  font-size: 20px;
+  color: white;
+  transition: 0.2s ease;
+}
+
+/* After saved: green filled icon */
+.save-icon.active {
+  color: hwb(0 88% 12%) !important;   /* bright green */
+  transform: scale(1.15);      /* slight pop effect */
 }
 
 .icon-row {
@@ -219,7 +225,7 @@
 
 /* favorite active = red */
 .fav-active {
-  color: red !important;
+  color: #87ff79 !important;
 }
 
 
@@ -230,16 +236,15 @@
   margin-top: 10px;
 }
 
-/* Default button design */
 .yt-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: #222;
-  padding: 6px 12px;
-  border-radius: 8px;
+  gap: 4px;
+  background: transparent;   /* remove box */
+  padding: 0;                /* remove padding */
+  border-radius: 0;          /* remove rounded shape */
+  border: none;              /* remove border */
   cursor: pointer;
-  border: 1px solid #333;
   transition: 0.2s ease;
   color: white;
 }
@@ -250,7 +255,7 @@
 
 /* Icon style */
 .yt-btn .icon {
-  font-size: 22px;
+  font-size: 20px;
   color: #aaa;
 }
 
@@ -271,8 +276,8 @@
 }
 
 .yt-btn.active {
-  background: #333;
-  border-color: #555;
+  background: transparent !important;
+  border: none !important;
 }
 
 
@@ -295,10 +300,11 @@
 }
 
 .favorite-btn.active .fav-icon {
-  color: #ff0055;
+  color: #FF69B4
 }
 
 .fav-count {
   color: white;
   font-size: 14px;
 }
+

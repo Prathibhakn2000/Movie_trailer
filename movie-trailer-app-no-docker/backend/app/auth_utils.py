@@ -54,7 +54,7 @@ from app.models import User
 SECRET_KEY = "supersecretkey"
 ALGORITHM = "HS256"
 
-oauth2 = OAuth2PasswordBearer(tokenUrl="login")
+oauth2 = OAuth2PasswordBearer(tokenUrl="/login")
 
 def get_current_user(token: str = Depends(oauth2), db=Depends(get_db)):
     try:
@@ -97,3 +97,6 @@ def get_current_admin_user(token: str = Depends(oauth2), db=Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized as admin")
     
     return user
+
+
+    

@@ -369,6 +369,7 @@ import {
   AiFillDislike
 } from "react-icons/ai";
 
+import { BsBookmark, BsBookmarkFill } from "react-icons/bs";
 
 
 
@@ -427,36 +428,100 @@ function MovieGrid({ token, role, onLogout }) {
     role === "admin" ? fetchAdminMovies() : fetchMovies(language);
   }, [language, role]);
 
-  // ⭐ STAR COMPONENT
-  const StarRating = ({ movieId, initialRating = 0, onRate }) => {
-    const [hoverRating, setHoverRating] = useState(null);
-    const [currentRating, setCurrentRating] = useState(initialRating);
+//   // ⭐ STAR COMPONENT
+//   const StarRating = ({ movieId, initialRating = 0, onRate }) => {
+//     const [hoverRating, setHoverRating] = useState(null);
+//     const [currentRating, setCurrentRating] = useState(initialRating);
 
-    return (
-      <div style={{ display: "flex", gap: "5px", marginTop: "6px" }}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
-          <FaStar
-            key={value}
-            size={22}
-            color={(hoverRating || currentRating) >= value ? "#f5c518" : "#aaa"}
-            style={{ cursor: "pointer" }}
-            onMouseEnter={() => setHoverRating(value)}
-            onMouseLeave={() => setHoverRating(null)}
-            onClick={() => {
-              setCurrentRating(value);
-              onRate(movieId, value);
-            }}
-          />
-        ))}
-      </div>
-    );
-  };
+//     return (
+//       <div style={{ display: "flex", gap: "5px", marginTop: "6px" }}>
+//         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+//           <FaStar
+//             key={value}
+//             size={22}
+//             color={(hoverRating || currentRating) >= value ? "#f5c518" : "#aaa"}
+//             style={{ cursor: "pointer" }}
+//             onMouseEnter={() => setHoverRating(value)}
+//             onMouseLeave={() => setHoverRating(null)}
+//             onClick={() => {
+//               setCurrentRating(value);
+//               onRate(movieId, value);
+//             }}
+//           />
+//         ))}
+//       </div>
+//     );
+//   };
 
-  // ⭐ RATE MOVIE
-  const rateMovie = async (movieId, rating) => {
+//   // ⭐ RATE MOVIE
+//   const rateMovie = async (movieId, rating) => {
+//   try {
+//     const token = localStorage.getItem("token");
+//     if (!token) return;
+
+//     const res = await axios.put(
+//       `${API_BASE}/movies/${movieId}/rating`,
+//       { rating: Number(rating) },
+//       { headers: { Authorization: `Bearer ${token}` } }
+//     );
+
+//     // Update movies state
+//     setMovies((prev) =>
+//       prev.map((m) =>
+//         m.id === movieId ? { ...m, user_rating: res.data.user_rating } : m
+//       )
+//     );
+
+//     alert("🎉 Rating saved!");
+//   } catch (err) {
+//     console.error("RATE ERROR:", err.response?.data || err);
+//     alert("❌ Rating failed!");
+//   }
+// };
+
+
+
+// ⭐ STAR COMPONENT
+const StarRating = ({ movieId, initialRating, onRate }) => {
+  const [hoverRating, setHoverRating] = React.useState(null);
+  const [currentRating, setCurrentRating] = React.useState(initialRating || 0);
+
+  // Sync rating if movies reload
+  React.useEffect(() => {
+    setCurrentRating(initialRating || 0);
+  }, [initialRating]);
+
+  return (
+    <div style={{ display: "flex", gap: "4px", marginTop: "6px" }}>
+      {Array.from({ length: 10 }, (_, i) => i + 1).map((value) => (
+        <FaStar
+          key={value}
+          size={20}
+          color={(hoverRating || currentRating) >= value ? "#f5c518" : "#aaa"}
+          style={{ cursor: "pointer" }}
+          onMouseEnter={() => setHoverRating(value)}
+          onMouseLeave={() => setHoverRating(null)}
+          onClick={() => {
+            setCurrentRating(value);   // instant UI update
+            onRate(movieId, value);    // send to backend
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+const rateMovie = async (movieId, rating) => {
   try {
     const token = localStorage.getItem("token");
     if (!token) return;
+
+    // UI update immediately (no delay)
+    setMovies((prev) =>
+      prev.map((m) =>
+        m.id === movieId ? { ...m, user_rating: rating } : m
+      )
+    );
 
     const res = await axios.put(
       `${API_BASE}/movies/${movieId}/rating`,
@@ -464,19 +529,21 @@ function MovieGrid({ token, role, onLogout }) {
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    // Update movies state
+    const finalRating = res?.data?.user_rating ?? rating;
+
+    // Final update from backend response
     setMovies((prev) =>
       prev.map((m) =>
-        m.id === movieId ? { ...m, user_rating: res.data.user_rating } : m
+        m.id === movieId ? { ...m, user_rating: finalRating } : m
       )
     );
-
-    alert("🎉 Rating saved!");
   } catch (err) {
-    console.error("RATE ERROR:", err.response?.data || err);
-    alert("❌ Rating failed!");
+    console.error("Rating Error:", err.response?.data || err);
   }
 };
+
+
+
 
 
   // 👑 ADMIN FETCH
@@ -508,23 +575,65 @@ function MovieGrid({ token, role, onLogout }) {
 // };
 
 
+// const fetchMovies = async (lang) => {
+//   try {
+//     const res = await axios.get(`${API_BASE}/movies`, { params: { lang } });
+
+//     const moviesWithCounts = await Promise.all(
+//       res.data.map(async (movie) => {
+//         // 📌 1. Get Likes / Dislikes count
+//         const countRes = await axios.get(`${API_BASE}/movies/${movie.id}/likes-count`);
+
+//         // 📌 2. Get Favorite count
+//         const favCountRes = await axios.get(`${API_BASE}/movies/${movie.id}/favorite-count`);
+
+//         return {
+//           ...movie,
+//           likes: countRes.data.likes,
+//           dislikes: countRes.data.dislikes,
+//           favorite_count: favCountRes.data.count   // ✅ Add favorite count here
+//         };
+//       })
+//     );
+
+//     setMovies(moviesWithCounts);
+//     setError("");
+
+//   } catch (err) {
+//     console.log("Fetch movies error:", err);
+//     setMovies([]);
+//     setError("Failed to load movies.");
+//   }
+// };
+
 const fetchMovies = async (lang) => {
   try {
-    const res = await axios.get(`${API_BASE}/movies`, { params: { lang } });
+    const token = localStorage.getItem("token");
+    console.log("DEBUG token:", token);  // Shows the JWT token
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
+    // 1️⃣ Fetch movies from backend
+    const res = await axios.get(`${API_BASE}/movies`, {
+      params: { lang },
+      headers,
+    });
+
+    console.log("DEBUG movies[0]:", res.data[0]);  // Shows the first movie object
+
+    // 2️⃣ Add likes, dislikes, and favorite counts
     const moviesWithCounts = await Promise.all(
       res.data.map(async (movie) => {
-        // 📌 1. Get Likes / Dislikes count
-        const countRes = await axios.get(`${API_BASE}/movies/${movie.id}/likes-count`);
-
-        // 📌 2. Get Favorite count
-        const favCountRes = await axios.get(`${API_BASE}/movies/${movie.id}/favorite-count`);
+        // Likes / Dislikes count
+        const countRes = await axios.get(`${API_BASE}/movies/${movie.id}/likes-count`, { headers });
+        
+        // Favorite count
+        const favRes = await axios.get(`${API_BASE}/movies/${movie.id}/favorite-count`, { headers });
 
         return {
           ...movie,
           likes: countRes.data.likes,
           dislikes: countRes.data.dislikes,
-          favorite_count: favCountRes.data.count   // ✅ Add favorite count here
+          favorite_count: favRes.data.count,
         };
       })
     );
@@ -533,7 +642,7 @@ const fetchMovies = async (lang) => {
     setError("");
 
   } catch (err) {
-    console.log("Fetch movies error:", err);
+    console.error("Fetch movies error:", err.response?.data || err);
     setMovies([]);
     setError("Failed to load movies.");
   }
@@ -671,6 +780,7 @@ useEffect(() => {
 //   }
 // };
 
+//Favorites 
 const addFavorite = async (movie) => {
   try {
     const res = await axios.post(
@@ -678,31 +788,25 @@ const addFavorite = async (movie) => {
       {
         movie_id: movie.id,
         title: movie.title || "",
-        poster_path: movie.poster_path || "",   // avoids null causing 422
+        poster_path: movie.poster_path || "",
       },
       {
         headers: { Authorization: `Bearer ${token}` },
       }
     );
 
-    // Toggle UI state
+    // toggle favorites list
     setFavorites((prev) =>
       prev.includes(movie.id)
         ? prev.filter((id) => id !== movie.id)
         : [...prev, movie.id]
     );
 
-    // Update favorite count on the movie
+    // set favorite count using backend value
     setMovies((prev) =>
       prev.map((m) =>
         m.id === movie.id
-          ? {
-              ...m,
-              favorite_count:
-                res.data.message === "favorited"
-                  ? m.favorite_count + 1
-                  : m.favorite_count - 1,
-            }
+          ? { ...m, favorite_count: res.data.favorite_count }
           : m
       )
     );
@@ -710,10 +814,6 @@ const addFavorite = async (movie) => {
     console.error("FAVORITE ERROR:", err.response?.data || err);
   }
 };
-
-    
- 
-  
 
 
 
@@ -724,21 +824,30 @@ const likeMovie = async (movie_id, isLike) => {
       `${API_BASE}/movies/like`,
       {
         movie_id: movie_id,
-        is_like: isLike,  // 🔥 MUST MATCH BACKEND
+        is_like: isLike,
       },
       {
-        headers: {
-          Authorization: `Bearer ${token}`,  // 🔥 MUST BE EXACT FORMAT
-        },
+        headers: { Authorization: `Bearer ${token}` },
       }
     );
 
+    // Update user like status
     setLikes((prev) => ({ ...prev, [movie_id]: isLike }));
 
+    // Update like/dislike count for the movie
+    setMovies((prev) =>
+      prev.map((m) =>
+        m.id === movie_id
+          ? { ...m, likes: res.data.likes, dislikes: res.data.dislikes }
+          : m
+      )
+    );
   } catch (err) {
     console.log("LIKE ERROR:", err);
   }
 };
+
+
 
 //already favt and like
 useEffect(() => {
@@ -833,45 +942,34 @@ useEffect(() => {
                 <h3>{movie.title}</h3>
 
                 {/* ⭐ STAR RATING (USERS ONLY) */}
-                {role !== "admin" && (
-                  <StarRating
-                    movieId={movie.id}
-                    initialRating={movie.user_rating || 0}
-                    onRate={rateMovie}
-                  />
-                )}
-
-                {/* ❤️ SAVE BUTTON */}
-                {role !== "admin" && (
-  <button
-  className={(savedMovies || []).includes(movie.id) ? "saved" : "save-btn"}
-  onClick={() => saveMovie(movie)}
-  disabled={(savedMovies || []).includes(movie.id)}
->
-  {(savedMovies || []).includes(movie.id) ? "Saved" : "Save"}
-</button>
+                {/* ⭐ STAR RATING (USERS ONLY) */}
+{role !== "admin" && (
+  <StarRating
+    movieId={movie.id}
+    initialRating={movie.user_rating || 0}
+    onRate={rateMovie}
+  />
 )}
 
-<div className="icon-row">
+
+       <div className="action-row">
 
   {/* FAVORITE */}
-  <button
-    className={(favorites || []).includes(movie.id) ? "favorite-btn active" : "favorite-btn"}
-    onClick={() => addFavorite(movie)}
-  >
-    {(favorites || []).includes(movie.id)
-      ? <AiFillHeart className="fav-icon active" />
-      : <AiOutlineHeart className="fav-icon" />
-    }
-  </button>
-
-  {/* FAVORITE COUNT */}
-  <span className="fav-count">
-    {movie.favorite_count || 0}
-  </span>
+  <div className="yt-btn favorite-btn-wrapper">
+    <button
+      className={(favorites || []).includes(movie.id) ? "favorite-btn active" : "favorite-btn"}
+      onClick={() => addFavorite(movie)}
+    >
+      {(favorites || []).includes(movie.id)
+        ? <AiFillHeart className="fav-icon active" />
+        : <AiOutlineHeart className="fav-icon" />
+      }
+    </button>
+    <span className="count">{movie.favorite_count || 0}</span>
+  </div>
 
   {/* LIKE */}
-  <button
+  <div
     className={likes[movie.id] === true ? "yt-btn like active" : "yt-btn like"}
     onClick={() => likeMovie(movie.id, true)}
   >
@@ -880,10 +978,10 @@ useEffect(() => {
       : <AiOutlineLike className="icon" />
     }
     <span className="count">{movie.likes}</span>
-  </button>
+  </div>
 
   {/* DISLIKE */}
-  <button
+  <div
     className={likes[movie.id] === false ? "yt-btn dislike active" : "yt-btn dislike"}
     onClick={() => likeMovie(movie.id, false)}
   >
@@ -891,9 +989,25 @@ useEffect(() => {
       ? <AiFillDislike className="icon" />
       : <AiOutlineDislike className="icon" />
     }
-    <span className="count">{movie.dislikes}</span>
-  </button>
+   <span className="count">{movie.dislikes}</span>
+  </div>
+
+  {/* SAVE → moved to END */}
+  {role !== "admin" && (
+    <button
+      className={(savedMovies || []).includes(movie.id) ? "save-btn active" : "save-btn"}
+      onClick={() => saveMovie(movie)}
+      disabled={(savedMovies || []).includes(movie.id)}
+    >
+      {(savedMovies || []).includes(movie.id)
+        ? <BsBookmarkFill className="save-icon active" />   // green when saved
+        : <BsBookmark className="save-icon" />              // white before saving
+      }
+    </button>
+  )}
+
 </div>
+
               </div>
             </div>
           ))

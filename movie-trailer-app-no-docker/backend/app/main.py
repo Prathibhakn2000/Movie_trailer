@@ -616,6 +616,15 @@ from app.models import User, SavedMovie, Rating, FavoriteMovie, LikeMovie
 from .schemas import MovieFavModel, MovieLikeModel
 from app.auth_utils import get_current_admin_user  # admin auth
 from app.auth_utils import get_current_user  # your user dependency
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends
+from typing import Optional, List, Dict
+from fastapi.openapi.utils import get_openapi
+
+
+
+
+
 
 # Load .env
 load_dotenv()
@@ -641,6 +650,35 @@ Base.metadata.create_all(bind=engine)
 SECRET_KEY = "supersecretkey"
 ALGORITHM = "HS256"
 pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title="Movie API",
+        version="1.0.0",
+        description="API with JWT Auth",
+        routes=app.routes,
+    )
+
+    openapi_schema["components"]["securitySchemes"] = {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+
+    # Automatically apply BearerAuth to all endpoints
+    for path in openapi_schema["paths"]:
+        for method in openapi_schema["paths"][path]:
+            openapi_schema["paths"][path][method]["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 
 # ==========================
@@ -685,7 +723,7 @@ def login(data: LoginModel, db: Session = Depends(get_db)):
     token_data = {
         "sub": user.email,
         "role": user.role,
-        "user_id": user.id,          # <<< IMPORTANT
+        "user_id": user.id, 
         "exp": datetime.utcnow() + timedelta(hours=2)
     }
 
@@ -693,32 +731,79 @@ def login(data: LoginModel, db: Session = Depends(get_db)):
 
     return {
         "access_token": token,
+        "token_type": "bearer",   # <<< REQUIRED
         "role": user.role,
         "username": user.username
     }
-
-
 # ==========================
 # FETCH MOVIES
 # ==========================
+# @app.get("/movies")
+# def get_movies(lang: str = "en"):
+#     # TMDB Discover API
+#     url = "https://api.themoviedb.org/3/discover/movie"
+#     params = {
+#         "api_key": TMDB_API_KEY,
+#         "with_original_language": lang,  # lang should be ISO 639-1 code: en, hi, ta, te, ml, kn
+#         "sort_by": "popularity.desc",
+#         "page": 1
+#     }
+
+#     try:
+#         response = requests.get(url, params=params)
+#         response.raise_for_status()
+#         data = response.json()
+#         return data.get("results", [])
+#     except requests.RequestException as e:
+#         raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
 @app.get("/movies")
-def get_movies(lang: str = "en"):
-    # TMDB Discover API
+def get_movies(
+    lang: str = "en",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # Optional if user is logged in
+):
     url = "https://api.themoviedb.org/3/discover/movie"
     params = {
         "api_key": TMDB_API_KEY,
-        "with_original_language": lang,  # lang should be ISO 639-1 code: en, hi, ta, te, ml, kn
+        "with_original_language": lang,
         "sort_by": "popularity.desc",
         "page": 1
     }
-
     try:
         response = requests.get(url, params=params)
         response.raise_for_status()
-        data = response.json()
-        return data.get("results", [])
+        movies = response.json().get("results", [])
+
+        # Attach saved info and ratings for the current user
+        for movie in movies:
+            saved = None
+            rating = 0
+            if current_user:
+                saved = db.query(SavedMovie).filter_by(
+                    movie_id=movie["id"], user_id=current_user.id
+                ).first()
+                if saved:
+                    rating_obj = db.query(Rating).filter_by(
+                        saved_movie_id=saved.id, user_id=current_user.id
+                    ).first()
+                    if rating_obj:
+                        rating = rating_obj.rating
+
+            movie["saved_id"] = saved.id if saved else None
+            movie["user_rating"] = rating
+
+        return movies
+
     except requests.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+    
+
 
 
 # ==========================
@@ -771,6 +856,63 @@ def delete_movie(movie_id: int, db=Depends(get_db), user=Depends(get_current_use
 # ==========================
 # UPDATE MOVIE RATING (USER ONLY)
 # ==========================
+# @app.put("/movies/{movie_id}/rating")
+# def update_movie_rating(
+#     movie_id: int,
+#     rating: float = Body(..., embed=True),
+#     db: Session = Depends(get_db),
+#     user=Depends(get_current_user)
+# ):
+#     # 1️⃣ Check if movie exists in saved_movies for this user
+#     movie = db.query(SavedMovie).filter(
+#         SavedMovie.movie_id == movie_id,
+#         SavedMovie.user_id == user.id
+#     ).first()
+
+#     if not movie:
+#         # If movie not saved yet, create a placeholder in saved_movies
+#         movie = SavedMovie(
+#             movie_id=movie_id,
+#             user_id=user.id,
+#             title="Unknown",
+#             overview="",
+#             poster_path="",
+#             vote_average=0
+#         )
+#         db.add(movie)
+#         db.commit()
+#         db.refresh(movie)
+
+#     # 2️⃣ Check if a rating already exists for this user and movie
+#     existing_rating = db.query(Rating).filter(
+#         Rating.user_id == user.id,
+#         Rating.saved_movie_id == movie.id
+#     ).first()
+
+#     if existing_rating:
+#         # Update existing rating
+#         existing_rating.rating = rating
+#     else:
+#         # Create a new rating
+#         new_rating = Rating(
+#             saved_movie_id=movie.id,
+#             user_id=user.id,
+#             rating=rating
+#         )
+#         db.add(new_rating)
+
+#     # 3️⃣ Commit all changes
+#     db.commit()
+
+#     return {
+#         "movie_id": movie.movie_id,
+#         "user_id": user.id,
+#         "rating": rating
+#     }
+
+
+
+# assumes FastAPI + SQLAlchemy session + models SavedMovie, Rating
 @app.put("/movies/{movie_id}/rating")
 def update_movie_rating(
     movie_id: int,
@@ -778,14 +920,13 @@ def update_movie_rating(
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
-    # 1️⃣ Check if movie exists in saved_movies for this user
+    # ensure saved movie exists for this user (create placeholder if needed)
     movie = db.query(SavedMovie).filter(
         SavedMovie.movie_id == movie_id,
         SavedMovie.user_id == user.id
     ).first()
 
     if not movie:
-        # If movie not saved yet, create a placeholder in saved_movies
         movie = SavedMovie(
             movie_id=movie_id,
             user_id=user.id,
@@ -798,32 +939,55 @@ def update_movie_rating(
         db.commit()
         db.refresh(movie)
 
-    # 2️⃣ Check if a rating already exists for this user and movie
+    # find or create rating
     existing_rating = db.query(Rating).filter(
         Rating.user_id == user.id,
         Rating.saved_movie_id == movie.id
     ).first()
 
     if existing_rating:
-        # Update existing rating
         existing_rating.rating = rating
+        db.add(existing_rating)
+        db.commit()
+        db.refresh(existing_rating)
+        saved_rating = existing_rating.rating
     else:
-        # Create a new rating
         new_rating = Rating(
             saved_movie_id=movie.id,
             user_id=user.id,
             rating=rating
         )
         db.add(new_rating)
+        db.commit()
+        db.refresh(new_rating)
+        saved_rating = new_rating.rating
 
-    # 3️⃣ Commit all changes
-    db.commit()
-
+    # return consistent payload
     return {
         "movie_id": movie.movie_id,
         "user_id": user.id,
-        "rating": rating
+        "user_rating": saved_rating
     }
+
+
+
+@app.get("/rating/{saved_movie_id}")
+def get_rating(saved_movie_id: int, user_id: int = Depends(get_current_user)):
+    db = SessionLocal()
+
+    rating = (
+        db.query(Rating)
+        .filter(Rating.saved_movie_id == saved_movie_id,
+                Rating.user_id == user_id.id)
+        .first()
+    )
+
+    if not rating:
+        return {"rating": 0}
+
+    return {"rating": rating.rating}
+
+
 
 
 # ==========================
@@ -884,15 +1048,43 @@ def search_movies(q: str = Query(..., description="Movie search query")):
 # ==========================
 # ADMIN: GET ALL SAVED MOVIES
 # ==========================
+# @app.get("/admin/movies")
+# def get_all_saved_movies(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin_user)):
+#     """
+#     Admin endpoint to return all saved movies with their ratings.
+#     """
+#     saved_movies = db.query(SavedMovie).all()
+    
+#     response = []
+#     for movie in saved_movies:
+#         movie_data = {
+#             "id": movie.id,
+#             "title": movie.title,
+#             "overview": movie.overview,
+#             "poster_path": movie.poster_path,
+#             "vote_average": movie.vote_average,
+#             "user": movie.user.username,
+#             "ratings": [{"username": r.user.username, "rating": r.rating} for r in movie.ratings]
+#         }
+#         response.append(movie_data)
+
+#     return response
+
+
+
 @app.get("/admin/movies")
 def get_all_saved_movies(db: Session = Depends(get_db), current_user: User = Depends(get_current_admin_user)):
     """
-    Admin endpoint to return all saved movies with their ratings.
+    Admin endpoint to return all saved movies with their ratings, likes, dislikes, and favorite counts.
     """
     saved_movies = db.query(SavedMovie).all()
-    
     response = []
+
     for movie in saved_movies:
+        likes_count = db.query(LikeMovie).filter(LikeMovie.movie_id == movie.movie_id, LikeMovie.is_like == True).count()
+        dislikes_count = db.query(LikeMovie).filter(LikeMovie.movie_id == movie.movie_id, LikeMovie.is_like == False).count()
+        fav_count = db.query(FavoriteMovie).filter(FavoriteMovie.movie_id == movie.movie_id).count()
+
         movie_data = {
             "id": movie.id,
             "title": movie.title,
@@ -900,11 +1092,16 @@ def get_all_saved_movies(db: Session = Depends(get_db), current_user: User = Dep
             "poster_path": movie.poster_path,
             "vote_average": movie.vote_average,
             "user": movie.user.username,
-            "ratings": [{"username": r.user.username, "rating": r.rating} for r in movie.ratings]
+            "ratings": [{"username": r.user.username, "rating": r.rating} for r in movie.ratings],
+            "likes": likes_count,
+            "dislikes": dislikes_count,
+            "favorite_count": fav_count
         }
         response.append(movie_data)
 
     return response
+
+
 
 
 # ==========================
@@ -979,13 +1176,13 @@ def favorite_movie(
 
     return {"favorite_count": count}
 
-
-
 # Get user's favorite movies
 @app.get("/user/favorites")
 def get_user_favorites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     favorites = db.query(FavoriteMovie).filter(FavoriteMovie.user_id == current_user.id).all()
     return {"favorites": [f.movie_id for f in favorites]}
+
+#
 
 @app.post("/movies/like")
 def like_movie(
@@ -999,19 +1196,35 @@ def like_movie(
     ).first()
 
     if existing:
-        # update like/dislike instead of deleting
         existing.is_like = data.is_like
         db.commit()
-        return {"message": "updated"}
+        message = "updated"
+    else:
+        new_like = LikeMovie(
+            user_id=current_user.id,
+            movie_id=data.movie_id,
+            is_like=data.is_like
+        )
+        db.add(new_like)
+        db.commit()
+        message = "created"
 
-    new_like = LikeMovie(
-        user_id=current_user.id,
-        movie_id=data.movie_id,
-        is_like=data.is_like
-    )
-    db.add(new_like)
-    db.commit()
-    return {"message": "created"}
+    # Return updated counts
+    likes_count = db.query(LikeMovie).filter(
+        LikeMovie.movie_id == data.movie_id,
+        LikeMovie.is_like == True
+    ).count()
+
+    dislikes_count = db.query(LikeMovie).filter(
+        LikeMovie.movie_id == data.movie_id,
+        LikeMovie.is_like == False
+    ).count()
+
+    return {
+        "message": message,
+        "likes": likes_count,
+        "dislikes": dislikes_count
+    }
 
 
 @app.get("/movies/{movie_id}/like-status")
@@ -1059,3 +1272,16 @@ def favorite_count(movie_id: int, db: Session = Depends(get_db)):
         FavoriteMovie.movie_id == movie_id
     ).count()
     return {"count": count}
+
+
+
+@app.get("/watchlist", response_model=List[MovieSaveSchema])
+def get_watchlist(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    saved_movies = db.query(SavedMovie).filter(SavedMovie.user_id == current_user.id).all()
+    return saved_movies
