@@ -1163,9 +1163,11 @@ def favorite_movie(
         db.commit()
     else:
         new_fav = FavoriteMovie(
-            user_id=current_user.id,
-            movie_id=data.movie_id
-        )
+    user_id=current_user.id,
+    movie_id=data.movie_id,
+    title=data.title,
+    poster_path=data.poster_path
+)
         db.add(new_fav)
         db.commit()
 
@@ -1285,3 +1287,16 @@ def get_watchlist(
 
     saved_movies = db.query(SavedMovie).filter(SavedMovie.user_id == current_user.id).all()
     return saved_movies
+
+
+
+# DELETE saved movie by ID
+@app.delete("/admin/movies/{movie_id}")
+def delete_movie(movie_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_admin_user)):
+    movie = db.query(SavedMovie).filter(SavedMovie.id == movie_id).first()
+    if not movie:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    
+    db.delete(movie)
+    db.commit()
+    return {"message": "Movie deleted successfully"}

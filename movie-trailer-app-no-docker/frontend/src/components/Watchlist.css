@@ -1,0 +1,140 @@
+/* ===== Watchlist Page Layout ===== */
+.watchlist-page {
+  padding: 30px;
+  color: white;
+  text-align: center;
+  min-height: 100vh;
+  background: #0d0d0d;
+}
+
+.watchlist-title {
+  font-size: 32px;
+  margin-bottom: 20px;
+  font-weight: bold;
+  color: #f5c518;
+}
+
+.loading-text,
+.empty-text {
+  font-size: 20px;
+  margin-top: 40px;
+  color: #ccc;
+}
+
+/* ===== Movie Grid ===== */
+.movie-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 25px;
+  padding: 10px;
+}
+
+.movie-card {
+  background: #1a1a1a;
+  padding: 15px;
+  border-radius: 12px;
+  transition: 0.3s;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+}
+
+.movie-card:hover {
+  transform: scale(1.03);
+}
+
+/* ===== Poster Display ===== */
+.poster-container {
+  position: relative;
+  cursor: pointer;
+}
+
+.poster {
+  width: 100%;
+  height: 330px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  opacity: 0;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.6);
+  transition: 0.3s ease;
+  border-radius: 12px;
+}
+
+.poster-container:hover .overlay {
+  opacity: 1;
+}
+
+.play-btn {
+  font-size: 40px;
+  color: #f5c518;
+}
+
+/* ===== Movie Info ===== */
+.movie-card h3 {
+  margin: 12px 0;
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+}
+
+/* ===== Action Buttons ===== */
+.action-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 5px 10px;
+  transition: 0.2s;
+}
+
+.icon-btn:hover {
+  transform: scale(1.1);
+}
+
+/* ===== Icon Colors ===== */
+.icon {
+  font-size: 20px;
+}
+
+.red {
+  color: #ff3b3b;
+}
+
+.green {
+  color: #4caf50;
+}
+
+.icon-btn span {
+  font-size: 16px;
+}
+
+/* ===== Modal Trailer ===== */
+.modal-overlay {
+  background: rgba(0,0,0,0.8);
+}
+
+.modal-content {
+  width: 70%;
+  height: 70%;
+  margin: auto;
+}

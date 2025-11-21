@@ -308,3 +308,40 @@
   font-size: 14px;
 }
 
+/* Sticky Language + Search Bar */
+.sticky-header {
+  position: sticky;      /* Make it stick */
+  top: 60px;             /* Offset below your Navbar height */
+  z-index: 900;          /* Less than Navbar so header stays on top */
+  background: linear-gradient(to bottom right, #000, #111 70%);
+  padding: 10px 0;
+}
+
+/* Internal spacing inside sticky header */
+.sticky-header .language-tabs,
+.sticky-header .search-bar {
+  margin-bottom: 10px;
+}
+
+/* Optional styling for active language button */
+.language-tabs button.active {
+  background-color: #f0e130;
+  color: #0d1b2a;
+  font-weight: bold;
+}
+
+/* Search bar styling */
+.search-bar input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: none;
+}
+.search-bar button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: #f0e130;
+  color: #0d1b2a;
+  font-weight: bold;
+  cursor: pointer;
+}
